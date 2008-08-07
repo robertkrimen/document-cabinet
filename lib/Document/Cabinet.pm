@@ -15,6 +15,202 @@ Version 0.01
 
 our $VERSION = '0.01';
 
+use Moose;
+use Document::Cabinet::Carp;
+use Document::Cabinet::Types;
+use Framework::Primer;
+
+use Document::Cabinet::Model;
+use Document::Cabinet::Schema;
+
+use DBIx::Deploy;
+use Path::Abstract;
+use DateTimeX::Easy;
+use Data::UUID::LibUUID;
+
+extends qw/Framework::Primer::Base/;
+
+setup(
+    name => 'cabinet',
+    dir => <<_END_
+var
+var/cabinet
+_END_
+);
+
+has schema_file => qw/is ro required 1 lazy 1/, isa => File, default => sub {
+    my $self = shift;
+    return $self->home_dir->file(qw/var cabinet.db/);
+};
+
+has deploy => qw/is ro required 1 lazy 1/, default => sub {
+    my $self = shift;
+    my $deploy;
+    $deploy = DBIx::Deploy->create(
+        engine => "SQLite",
+        database => [ $self->schema_file ],
+        create => \<<_END_,
+[% PRIMARY_KEY = "INTEGER PRIMARY KEY AUTOINCREMENT" %]
+[% KEY = "INTEGER" %]
+
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+insert_dtime DATE NOT NULL DEFAULT current_timestamp,
+
+[% CLEAR %]
+--
+CREATE TABLE post (
+
+    id                  [% PRIMARY_KEY %],
+
+    folder              TEXT NOT NULL,
+    title               TEXT NOT NULL,
+    uuid                TEXT NOT NULL,
+    cdtime              TEXT NOT NULL,
+    mdtime              TEXT,
+
+    UNIQUE(uuid)
+
+);
+_END_
+    );
+};
+
+has schema => qw/is ro lazy 1/, default => sub {
+    my $self = shift;
+    my $schema = Document::Cabinet::Schema->connect($self->deploy->information);
+    $schema->cabinet($self);
+#    $schema->storage->dbh->{unicode} = 1;
+#    weaken $schema->{cabinet};
+    return $schema;
+};
+
+has model => qw/is ro lazy 1/, default => sub {
+    my $self = shift;
+    my $model = Document::Cabinet::Model->new(cabinet => $self, schema => $self->schema);
+    return $model;
+};
+
+sub parse_post {
+    my $self = shift;
+    my $post = shift;
+    my $file = shift;
+
+    my $schema = $self->schema;
+
+    return $post unless $file ||= $self->post_file($post);
+
+    my $document = Document::Stembolt->new(file => $file);
+    my $header = $document->header;
+
+    unless ($header->{uuid}) {
+        print "No UUID, skipping save\n";
+        return;
+    }
+
+#    if ($header->{path} && $header->{path} eq "#") {
+#        print "Path is # so I'll delete\n";
+#        if ($post) {
+#            print "Nothing to delete\n";
+#        }
+#        else {
+#            print "Post deleted\n";
+#        }
+#        return;
+#    }
+
+    ($post) = $self->model->source(qw/Post/)->search({ uuid => $header->{uuid} })->slice(0, 0);
+
+    {
+        my ($path, $title, $cdtime, $mdtime, $uuid) = delete @$header{qw/path title cdtime mdtime uuid/};
+        if ($post) {
+            $post->storage->update({
+                path => $path,
+                title => $title,
+                cdtime => DateTimeX::Easy->new($cdtime, time_zone => "UTC"),
+                mdtime => DateTime->now(time_zone => "UTC"),
+            });
+        }
+        else {
+            if (! $document->body) {
+
+                print "No content with new post, skipping save\n";
+                return;
+            }
+
+            $post = $self->schema->resultset(qw/Post/)->create({
+                path => $path,
+                title => $title,
+                uuid => $uuid,
+                cdtime => DateTimeX::Easy->new($cdtime, time_zone => "UTC"),
+                mdtime => DateTimeX::Easy->new($cdtime, time_zone => "UTC"),
+            });
+
+            $post = $self->model->inflate(post => { storage => $post });
+        }
+    }
+
+    ($post) = $self->model->source(qw/Post/)->search({ id => $post->id })->slice(0, 0);
+
+    return $post;
+}
+
+sub edit_post {
+    my $self = shift;
+    my $post = shift;
+
+    my $file = $self->var_cabinet_dir->file($post->uuid);
+    my $document = Document::Stembolt->new(file => $file);
+    $document->header->{uuid} = $post->uuid;
+    $document->edit;
+
+    my ($folder, $title, $cdtime) = @{ $document->header }{ qw/folder title cdtime/ };
+
+    $post->storage->update({
+        title => $title,
+        folder => $folder,
+        cdtime => DateTimeX::Easy->new($cdtime, time_zone => "UTC"),
+        mdtime => DateTime->now(time_zone => "UTC"),
+    });
+}
+
+sub new_post {
+    my $self = shift;
+    my $folder = shift;
+    my $title = shift;
+
+    my $uuid = new_uuid_string;
+    my $cdtime = DateTime->now->set_time_zone('UTC')->strftime("%F %T %z");
+
+    my $file = $self->var_cabinet_dir->file($uuid);
+
+    my $document = Document::Stembolt->new(file => $file);
+    $document->header->{folder} = $folder;
+    $document->header->{title} = $title;
+    $document->header->{uuid} = $uuid;
+    $document->header->{cdtime} = $cdtime;
+
+    $document->edit;
+
+    my $post;
+
+    if ($document->body) {
+        my ($folder, $title, $uuid, $cdtime) = @{ $document->header }{ qw/folder title uuid cdtime/ };
+
+        $post = $self->schema->resultset(qw/Post/)->create({
+            folder => $folder,
+            title => $title,
+            UUId => $uuid,
+            cdtime => DateTimeX::Easy->new($cdtime, time_zone => "UTC"),
+            mdtime => DateTimeX::Easy->new($cdtime, time_zone => "UTC"),
+        });
+
+    }
+    else {
+        print "No content with new post, skipping save\n";
+        $file->remove;
+        return;
+    }
+}
 
 =head1 AUTHOR
 

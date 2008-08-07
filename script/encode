@@ -1,0 +1,15 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Data::UUID::LibUUID;
+use Encode::Base32::Crockford qw/:all/;  
+
+for (1 .. 10) {
+    my $uuid = new_uuid_string;
+#    my $number = hex $uuid;
+#    my $base32 = base32_encode $number;
+#    print "$uuid $number $base32\n";
+    print "$uuid\n";
+}
