@@ -199,7 +199,7 @@ sub new_post {
         $post = $self->schema->resultset(qw/Post/)->create({
             folder => $folder,
             title => $title,
-            UUId => $uuid,
+            uuid => $uuid,
             cdtime => DateTimeX::Easy->new($cdtime, time_zone => "UTC"),
             mdtime => DateTimeX::Easy->new($cdtime, time_zone => "UTC"),
         });
