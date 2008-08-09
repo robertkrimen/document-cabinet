@@ -9,6 +9,7 @@ use Path::Abstract;
 use Document::Stembolt;
 use DateTime;
 use Document::Cabinet;
+use Getopt::Chain;
 
 sub abort(@) {
     print join "", @_, "\n" if @_;
@@ -63,7 +64,6 @@ sub folder_title {
     else {
         $folder = "Unfiled";
     }
-#    $folder = $root->subdir($folder);
 
     return unless @_;
 
@@ -79,6 +79,83 @@ sub list {
         print "\n";
     }
 }
+
+Getopt::Chain->process(
+
+    commands => {
+
+        DEFAULT => sub {
+            my $context = shift;
+
+            print <<_END_;
+Usage: $0 <command>
+
+    new [folder] <title>
+    edit <key>
+    list
+    assets <key>
+    link <key> [path]
+    retitle
+
+_END_
+        },
+
+        new => sub {
+            my $context = shift;
+
+            my ($folder, $title) = folder_title $context->remaining_arguments or abort "Wasn't given an article to edit";
+            $cabinet->new_post($folder, $title);
+        },
+
+        edit => sub {
+            my $context = shift;
+
+            my $key = shift @ARGV or return $context->run('list');
+
+            my ($post, $search, $count, $many);
+            $count = ($search = $cabinet->model->search(post => { title => $key }))->count;
+
+            if ($count == 1) {
+                ($post) = $search->slice(0, 0);
+            }
+            elsif ($count > 1) {
+                $many = $search;
+            }
+            else {
+                $count = ($search = $cabinet->model->search(post => { uuid => { -like => "$key%" } }))->count;
+                if ($count == 1) {
+                    ($post) = $search->slice(0, 0);
+                }
+                elsif ($count > 1) {
+                    $many = $search;
+                }
+                else {
+                    abort "Didn't find any matches";
+                }
+            }
+
+            if ($many) {
+                print "Which did you want?\n";
+                list $many;
+            }
+            else {
+                $cabinet->edit_post($post);
+            }
+        },
+
+        list => sub {
+            my $context = shift;
+
+            list scalar $cabinet->model->search(post => {});
+        },
+
+        retitle => sub {
+            my $context = shift;
+        },
+        
+    },
+);
+__END__
 
 local $_ = $0;
 if (m/\barticle-new$/) {
