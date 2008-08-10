@@ -3,13 +3,16 @@
 use strict;
 use warnings;
 
-use Data::GUID;
+use Data::UUID::LibUUID;
 use Carp;
 use Path::Abstract;
 use Document::Stembolt;
 use DateTime;
 use Document::Cabinet;
 use Getopt::Chain;
+use Term::Prompt;
+
+local $Term::Prompt::MULTILINE_INDENT = undef;
 
 sub abort(@) {
     print join "", @_, "\n" if @_;
@@ -36,7 +39,7 @@ sub article {
 
     my $title = join " ", @_;
 
-    my $uuid = lc Data::GUID->new->as_string;
+    my $uuid = new_uuid_string;
     my $name = $title;
     $name =~ s/[^A-Za-z0-9]/-/g;
     $name =~ s/-+/-/g;
@@ -74,10 +77,66 @@ sub folder_title {
 
 sub list {
     my $search = shift;
+
+    $search = scalar $cabinet->model->search(post => {}) unless $search;
+
     for my $post ($search->search(undef, { order_by => ['cdtime'] })) {
         print join " ", $post->uuid, $post->title;
         print "\n";
     }
+}
+
+sub _find {
+    my @criteria = @_;
+
+    return unless @criteria;
+
+    my $criteria = $criteria[0];
+    my ($folder, $title) = folder_title @criteria;
+
+    my ($search, $post, $count);
+    $search = $cabinet->model->search(post =>
+        [ 
+            { title => $criteria },
+            { folder => $folder, title => $title },
+            { uuid => { -like => "$criteria%" } },
+        ],
+        {}
+    );
+
+    $count = $search->count;
+    ($post) = $search->slice(0, 0) if 1 == $count;
+
+    return wantarray ? ($post, $search, $count) : $post;
+}
+
+sub new {
+    my ($folder, $title) = @_;
+
+    return $cabinet->new_post($folder, $title);
+}
+
+sub find {
+    my @criteria = @_;
+
+    unless (@criteria) {
+        list;
+        return;
+    }
+
+    my ($post, $search, $count) = _find @criteria;
+
+    abort "Didn't find any matches for your criteria" unless $count;
+
+    choose $search if $count > 1;
+
+    return $post;
+}
+
+sub choose {
+    my $search = shift;
+    print "Which did you want?\n";
+    list $search;
 }
 
 Getopt::Chain->process(
@@ -91,8 +150,9 @@ Getopt::Chain->process(
 Usage: $0 <command>
 
     new [folder] <title>
-    edit <key>
-    list
+    edit <criteria> ...
+    trash <criteria> ...
+    list 
     assets <key>
     link <key> [path]
     retitle
@@ -102,55 +162,55 @@ _END_
 
         new => sub {
             my $context = shift;
+            local @_ = $context->remaining_arguments;
 
-            my ($folder, $title) = folder_title $context->remaining_arguments or abort "Wasn't given an article to edit";
-            $cabinet->new_post($folder, $title);
+            my ($folder, $title) = folder_title @_ or abort "Wasn't given an article to edit";
+
+            my $post = new $folder, $title;
         },
 
         edit => sub {
             my $context = shift;
+            local @_ = $context->remaining_arguments; # TODO Should pass in remaining arguments
 
-            my $key = shift @ARGV or return $context->run('list');
+            return list unless @_;
 
-            my ($post, $search, $count, $many);
-            $count = ($search = $cabinet->model->search(post => { title => $key }))->count;
+            my ($post, $search, $count) = _find @_;
 
-            if ($count == 1) {
-                ($post) = $search->slice(0, 0);
-            }
-            elsif ($count > 1) {
-                $many = $search;
-            }
-            else {
-                $count = ($search = $cabinet->model->search(post => { uuid => { -like => "$key%" } }))->count;
-                if ($count == 1) {
-                    ($post) = $search->slice(0, 0);
-                }
-                elsif ($count > 1) {
-                    $many = $search;
-                }
-                else {
-                    abort "Didn't find any matches";
-                }
-            }
-
-            if ($many) {
-                print "Which did you want?\n";
-                list $many;
-            }
-            else {
+            if ($post) {
                 $cabinet->edit_post($post);
             }
+            else {
+                return choose $search if $count > 1;
+                return unless my ($folder, $title) = folder_title @_;
+                if (prompt y => "Post \"$title\" not found. Do you want to start it?", undef, 'N') {
+                    my $post = new $folder, $title;
+                }
+            }
+        },
+
+        trash => sub {
+            my $context = shift;
+            local @_ = $context->remaining_arguments;
+
+            return unless my $post = find @_;
+
+            $cabinet->trash_post($post);
         },
 
         list => sub {
             my $context = shift;
+            local @_ = $context->remaining_arguments;
 
-            list scalar $cabinet->model->search(post => {});
+            my $search;
+            (undef, $search) = _find @_ if $_;
+
+            list $search;
         },
 
         retitle => sub {
             my $context = shift;
+            local @_ = $context->remaining_arguments;
         },
         
     },

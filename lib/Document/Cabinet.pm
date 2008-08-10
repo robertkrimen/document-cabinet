@@ -35,6 +35,7 @@ setup(
     dir => <<_END_
 var
 var/cabinet
+var/cabinet/trash
 _END_
 );
 
@@ -161,6 +162,7 @@ sub edit_post {
     my $file = $self->var_cabinet_dir->file($post->uuid);
     my $document = Document::Stembolt->new(file => $file);
     $document->header->{uuid} = $post->uuid;
+
     $document->edit;
 
     my ($folder, $title, $cdtime) = @{ $document->header }{ qw/folder title cdtime/ };
@@ -171,6 +173,13 @@ sub edit_post {
         cdtime => DateTimeX::Easy->new($cdtime, time_zone => "UTC"),
         mdtime => DateTime->now(time_zone => "UTC"),
     });
+}
+
+sub trash_post {
+    my $self = shift;
+    my $post = shift;
+
+    $post->trash;
 }
 
 sub new_post {
@@ -203,13 +212,14 @@ sub new_post {
             cdtime => DateTimeX::Easy->new($cdtime, time_zone => "UTC"),
             mdtime => DateTimeX::Easy->new($cdtime, time_zone => "UTC"),
         });
-
     }
     else {
         print "No content with new post, skipping save\n";
         $file->remove;
         return;
     }
+
+    return $post;
 }
 
 =head1 AUTHOR
