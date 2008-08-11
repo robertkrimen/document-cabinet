@@ -11,6 +11,7 @@ use DateTime;
 use Document::Cabinet;
 use Getopt::Chain;
 use Term::Prompt;
+use Text::ASCIITable;
 
 local $Term::Prompt::MULTILINE_INDENT = undef;
 
@@ -21,40 +22,6 @@ sub abort(@) {
 
 my $cabinet = Document::Cabinet->new;
 my $root = $cabinet->var_cabinet_dir;
-
-sub article {
-
-    return unless @_;
-
-    my $folder;
-    if (($folder = $_[0]) =~ s/^\.//) {
-        shift @_;
-    }
-    else {
-        $folder = "Unfiled";
-    }
-    $folder = $root->subdir($folder);
-
-    return unless @_;
-
-    my $title = join " ", @_;
-
-    my $uuid = new_uuid_string;
-    my $name = $title;
-    $name =~ s/[^A-Za-z0-9]/-/g;
-    $name =~ s/-+/-/g;
-    my $file = join '-', $name, $uuid;
-    my $path = $folder->subdir($file);
-
-    return {
-        folder => $folder,
-        path => $path,
-        file => $file,
-        title => $title,
-        uuid => $uuid,
-        name => $name,
-    };
-}
 
 sub folder_title {
 
@@ -79,11 +46,17 @@ sub list {
     my $search = shift;
 
     $search = scalar $cabinet->model->search(post => {}) unless $search;
+    my @posts = $search->search(undef, { order_by => ['cdtime'] })->all;
 
-    for my $post ($search->search(undef, { order_by => ['cdtime'] })) {
-        print join " ", $post->uuid, $post->title;
-        print "\n";
-    }
+#    my $tb = Text::Table->new;
+#    $tb->rule(qw/- +/);
+#    $tb->load(map { [ $_->uuid, $_->title ] } @posts); 
+#    print $tb;
+
+    my $tb = Text::ASCIITable->new({ hide_HeadLine => 1 });
+    $tb->setCols('', '');
+    $tb->addRow($_->uuid, $_->title) for @posts;
+    print $tb;
 }
 
 sub _find {
@@ -126,7 +99,7 @@ sub find {
 
     my ($post, $search, $count) = _find @criteria;
 
-    abort "Didn't find any matches for your criteria" unless $count;
+    abort "No post found matching your criteria" unless $count;
 
     choose $search if $count > 1;
 
@@ -135,7 +108,6 @@ sub find {
 
 sub choose {
     my $search = shift;
-    print "Which did you want?\n";
     list $search;
 }
 
@@ -164,7 +136,7 @@ _END_
             my $context = shift;
             local @_ = $context->remaining_arguments;
 
-            my ($folder, $title) = folder_title @_ or abort "Wasn't given an article to edit";
+            my ($folder, $title) = folder_title @_ or abort "Missing a title";
 
             my $post = new $folder, $title;
         },
@@ -187,6 +159,19 @@ _END_
                     my $post = new $folder, $title;
                 }
             }
+        },
+
+        link => sub {
+            my $context = shift;
+            local @_ = $context->remaining_arguments;
+
+            return list unless @_;
+
+            my $criteria = shift;
+
+            return unless my $post = find $criteria;
+
+            $post->link(@_);
         },
 
         trash => sub {
@@ -215,64 +200,3 @@ _END_
         
     },
 );
-__END__
-
-local $_ = $0;
-if (m/\barticle-new$/) {
-    my ($folder, $title) = folder_title @ARGV or abort "Wasn't given an article to edit";
-    $cabinet->new_post($folder, $title);
-}
-elsif (m/\barticle-edit$/) {
-    my $key = shift @ARGV or goto article_LIST;
-
-    my ($post, $search, $count, $many);
-    $count = ($search = $cabinet->model->search(post => { title => $key }))->count;
-
-    if ($count == 1) {
-        ($post) = $search->slice(0, 0);
-    }
-    elsif ($count > 1) {
-        $many = $search;
-    }
-    else {
-        $count = ($search = $cabinet->model->search(post => { uuid => { -like => "$key%" } }))->count;
-        if ($count == 1) {
-            ($post) = $search->slice(0, 0);
-        }
-        elsif ($count > 1) {
-            $many = $search;
-        }
-        else {
-            abort "Didn't find any matches";
-        }
-    }
-
-    if ($many) {
-        print "Which did you want?\n";
-        list $many;
-    }
-    else {
-        $cabinet->edit_post($post);
-    }
-
-
-    
-#    my $article = article @ARGV or abort "Wasn't given an article to edit";
-#    my $document = Document::Stembolt->new(file => $article->{path}->file);
-#    unless (-e $document->file) {
-#        $document->header->{title} = $article->{title};
-#        $document->header->{uuid} = $article->{uuid};
-#        $document->header->{cdtime} = DateTime->now->set_time_zone('UTC')->strftime("%F %T %z");
-#    }
-#    $document->edit;
-}
-elsif (m/\barticle-list$/) {
-article_LIST:
-    list scalar $cabinet->model->search(post => {});
-}
-elsif (m/\barticle-retitle$/) {
-}
-else {
-    abort "Don't know what you want me to do";
-}
-

@@ -8,8 +8,7 @@ has model => qw/is ro required 1 lazy 1/, default => sub {
 
 has cabinet => qw/is ro required 1 lazy 1 isa Document::Cabinet/, default => sub {
     return shift->model->cabinet;
-};
-
+}; 
 package Document::Cabinet::Model::Post;
 
 use Moose;
@@ -18,6 +17,7 @@ use Document::Cabinet::Carp;
 with qw/Document::Cabinet::Role::Model/;
 
 use File::Verbose qw/:all/;
+use Path::Class;
 
 has file => qw/is ro lazy_build 1/;
 sub _build_file {
@@ -44,6 +44,24 @@ sub trash {
     rename $assets_dir, $trash_dir->subdir($assets_dir->dir_list(-1)) if -e $assets_dir;
 
     $self->storage->delete;
+}
+
+sub link {
+    my $self = shift;
+    my @path = @_;
+    @path = qw/./ unless @path;
+
+    my $path = Path::Class::dir(@path);
+    $path = $path->file($self->title) if -d $path;
+
+    $path = Path::Class::file($path);
+    $path->parent->mkpath unless -d $path;
+
+    my $file = $self->file;
+    symlink $file, $path;
+
+    my $assets_dir = $self->assets_dir;
+    symlink $file, "${path}_assets";
 }
 
 package Document::Cabinet::Model;
