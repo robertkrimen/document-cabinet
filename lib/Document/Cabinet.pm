@@ -91,6 +91,14 @@ has model => qw/is ro lazy 1/, default => sub {
     return $model;
 };
 
+sub post {
+    my $self = shift;
+    my $query = shift;
+
+    my ($post) = $self->model->search(post => { uuid => $query })->slice(0, 0);
+    return $post;
+}
+
 sub parse_post {
     my $self = shift;
     my $post = shift;

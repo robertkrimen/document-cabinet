@@ -48,11 +48,6 @@ sub list {
     $search = scalar $cabinet->model->search(post => {}) unless $search;
     my @posts = $search->search(undef, { order_by => ['cdtime'] })->all;
 
-#    my $tb = Text::Table->new;
-#    $tb->rule(qw/- +/);
-#    $tb->load(map { [ $_->uuid, $_->title ] } @posts); 
-#    print $tb;
-
     my $tb = Text::ASCIITable->new({ hide_HeadLine => 1 });
     $tb->setCols('', '');
     $tb->addRow($_->uuid, $_->title) for @posts;
@@ -108,6 +103,9 @@ sub find {
 
 sub choose {
     my $search = shift;
+
+    print "Too many posts found matching your criteria\n";
+
     list $search;
 }
 
@@ -117,6 +115,13 @@ Getopt::Chain->process(
 
         DEFAULT => sub {
             my $context = shift;
+            local @_ = $context->remaining_arguments;
+
+            if (defined (my $command = $context->command)) {
+                print <<_END_;
+Unknown command: $command
+_END_
+            }
 
             print <<_END_;
 Usage: $0 <command>

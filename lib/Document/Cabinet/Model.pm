@@ -18,6 +18,7 @@ with qw/Document::Cabinet::Role::Model/;
 
 use File::Verbose qw/:all/;
 use Path::Class;
+use Document::Stembolt;
 
 has file => qw/is ro lazy_build 1/;
 sub _build_file {
@@ -29,6 +30,12 @@ has assets_dir => qw/is ro lazy_build 1/;
 sub _build_assets_dir {
     my $self = shift;
     return $self->cabinet->var_cabinet_dir->subdir(join '_', $self->uuid, qw/assets/);
+}
+
+has document => qw/is ro lazy_build 1/;
+sub _build_document {
+    my $self = shift;
+    return Document::Stembolt->new(file => $self->file);
 }
 
 sub trash {
