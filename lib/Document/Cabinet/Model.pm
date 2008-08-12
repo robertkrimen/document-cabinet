@@ -68,7 +68,7 @@ sub link {
     symlink $file, $path;
 
     my $assets_dir = $self->assets_dir;
-    symlink $file, "${path}_assets";
+    symlink $assets_dir, "${path}_assets";
 }
 
 package Document::Cabinet::Model;

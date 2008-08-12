@@ -166,6 +166,22 @@ _END_
             }
         },
 
+        assets => sub {
+            my $context = shift;
+            local @_ = $context->remaining_arguments;
+
+            return unless my $post = find @_;
+
+            my $assets_dir = $post->assets_dir;
+
+            if (-d $assets_dir) {
+                print "$assets_dir already exists\n";
+            }
+            else {
+                $assets_dir->mkpath;
+            }
+        },
+
         link => sub {
             my $context = shift;
             local @_ = $context->remaining_arguments;
@@ -185,7 +201,10 @@ _END_
 
             return unless my $post = find @_;
 
-            $cabinet->trash_post($post);
+            my $title = $post->title;
+            if (prompt y => "Are you sure you want to trash \"$title\"?", undef, 'N') {
+                $cabinet->trash_post($post);
+            }
         },
 
         list => sub {
