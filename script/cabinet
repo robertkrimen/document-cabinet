@@ -132,6 +132,7 @@ Usage: $0 <command>
     list 
     assets <key>
     link <key> [path]
+    link-all [path]
     retitle
 
 _END_
@@ -196,6 +197,17 @@ _END_
             $post->link(@_);
         },
 
+        'link-all' => sub {
+            my $context = shift;
+            local @_ = $context->remaining_arguments;
+
+            return list unless @_;
+
+            my @posts = $cabinet->model->search(post => {});
+            for (@posts) {
+                $_->link(@_);
+            }
+        },
         trash => sub {
             my $context = shift;
             local @_ = $context->remaining_arguments;

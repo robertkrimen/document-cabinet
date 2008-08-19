@@ -38,6 +38,16 @@ sub _build_document {
     return Document::Stembolt->new(file => $self->file);
 }
 
+has safe_title => qw/is ro lazy_build 1 isa Str/;
+sub _build_safe_title {
+    my $self = shift;
+    my $title = $self->title;
+    $title =~ s/[^A-Za-z0-9]+/-/g;
+    $title =~ s/^-+//g;
+    $title =~ s/-+$//g;
+    return $title;
+}
+
 sub trash {
     my $self = shift;
 
@@ -59,16 +69,16 @@ sub link {
     @path = qw/./ unless @path;
 
     my $path = Path::Class::dir(@path);
-    $path = $path->file($self->title) if -d $path;
+    $path = $path->file($self->safe_title) if -d $path;
 
     $path = Path::Class::file($path);
     $path->parent->mkpath unless -d $path;
 
     my $file = $self->file;
-    symlink $file, $path;
+    symlink $file, "$path.document";
 
     my $assets_dir = $self->assets_dir;
-    symlink $assets_dir, "${path}_assets";
+    symlink $assets_dir, "$path.assets";
 }
 
 package Document::Cabinet::Model;
