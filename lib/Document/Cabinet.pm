@@ -204,6 +204,7 @@ sub new_post {
     $document->header->{folder} = $folder;
     $document->header->{title} = $title;
     $document->header->{uuid} = $uuid;
+    $document->header->{content_type} = 'text/x-multi-markdown';
     $document->header->{cdtime} = $cdtime;
 
     $document->edit;
