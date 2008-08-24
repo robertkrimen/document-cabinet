@@ -18,7 +18,11 @@ our $VERSION = '0.01';
 use Moose;
 use Document::Cabinet::Carp;
 use Document::Cabinet::Types;
-use Framework::Primer;
+use Framework::Sourmash::Kit name => 'cabinet', dir => <<_END_;
+run
+run/cabinet
+run/cabinet/trash
+_END_
 
 use Document::Cabinet::Model;
 use Document::Cabinet::Schema;
@@ -28,20 +32,9 @@ use Path::Abstract;
 use DateTimeX::Easy;
 use Data::UUID::LibUUID;
 
-extends qw/Framework::Primer::Base/;
-
-setup(
-    name => 'cabinet',
-    dir => <<_END_
-var
-var/cabinet
-var/cabinet/trash
-_END_
-);
-
 has schema_file => qw/is ro required 1 lazy 1/, isa => File, default => sub {
     my $self = shift;
-    return $self->home_dir->file(qw/var cabinet.db/);
+    return $self->home_dir->file(qw/run cabinet.db/);
 };
 
 has deploy => qw/is ro required 1 lazy 1/, default => sub {
@@ -163,11 +156,29 @@ sub parse_post {
     return $post;
 }
 
+sub parse_file {
+    my $self = shift;
+    my $file = shift;
+
+    croak "File \"$file\" doesn't exist" unless -f $file;
+    my $document = Document::Stembolt->new(file => $file);
+    my ($uuid, $folder, $title, $cdtime) = @{ $document->header }{ qw/uuid folder title cdtime/ };
+    croak "Couldn't get uuid from $file" unless $uuid;
+    my $post = $self->post($uuid) or croak "Couldn't find post with uuid $uuid";
+
+    $post->storage->update({
+        title => $title,
+        folder => $folder,
+        cdtime => DateTimeX::Easy->new($cdtime, time_zone => "UTC"),
+        mdtime => DateTime->now(time_zone => "UTC"),
+    });
+}
+
 sub edit_post {
     my $self = shift;
     my $post = shift;
 
-    my $file = $self->var_cabinet_dir->file($post->uuid);
+    my $file = $self->run_cabinet_dir->file($post->uuid);
     my $document = Document::Stembolt->new(file => $file);
     $document->header->{uuid} = $post->uuid;
 
@@ -198,7 +209,7 @@ sub new_post {
     my $uuid = new_uuid_string;
     my $cdtime = DateTime->now->set_time_zone('UTC')->strftime("%F %T %z");
 
-    my $file = $self->var_cabinet_dir->file($uuid);
+    my $file = $self->run_cabinet_dir->file($uuid);
 
     my $document = Document::Stembolt->new(file => $file);
     $document->header->{folder} = $folder;

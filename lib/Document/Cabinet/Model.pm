@@ -16,20 +16,20 @@ use Document::Cabinet::Carp;
 
 with qw/Document::Cabinet::Role::Model/;
 
-use File::Verbose qw/:all/;
+use File::Verbose qw/symlink/;
 use Path::Class;
 use Document::Stembolt;
 
 has file => qw/is ro lazy_build 1/;
 sub _build_file {
     my $self = shift;
-    return $self->cabinet->var_cabinet_dir->file($self->uuid);
+    return $self->cabinet->run_cabinet_dir->file($self->uuid);
 }
 
 has assets_dir => qw/is ro lazy_build 1/;
 sub _build_assets_dir {
     my $self = shift;
-    return $self->cabinet->var_cabinet_dir->subdir(join '_', $self->uuid, qw/assets/);
+    return $self->cabinet->run_cabinet_dir->subdir(join '_', $self->uuid, qw/assets/);
 }
 
 has document => qw/is ro lazy_build 1/;
@@ -51,7 +51,7 @@ sub _build_safe_title {
 sub trash {
     my $self = shift;
 
-    my $trash_dir = $self->cabinet->var_cabinet_trash_dir;
+    my $trash_dir = $self->cabinet->run_cabinet_trash_dir;
     $trash_dir->mkpath unless -d $trash_dir;
 
     my $file = $self->file;
@@ -61,6 +61,11 @@ sub trash {
     rename $assets_dir, $trash_dir->subdir($assets_dir->dir_list(-1)) if -e $assets_dir;
 
     $self->storage->delete;
+}
+
+has content => qw/is ro lazy_build 1 isa Str/;
+sub _build_content {
+    my $self = shift;
 }
 
 sub link {

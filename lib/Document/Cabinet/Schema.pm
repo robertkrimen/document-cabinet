@@ -21,9 +21,10 @@ use JSON;
 __PACKAGE__->load_components(qw/InflateColumn::DateTime PK::Auto Core/);
 __PACKAGE__->table('post');
 __PACKAGE__->add_columns(
-    qw/id folder title uuid cdtime mdtime/
+    qw/id folder title uuid/
 );
 __PACKAGE__->set_primary_key('id');
+__PACKAGE__->add_columns(cdtime => { data_type => 'datetime' }, mdtime => { data_type => 'datetime' });
 #__PACKAGE__->add_unique_constraint([qw//]);
 $schema->register_class(substr(__PACKAGE__, 10 + length $schema) => __PACKAGE__);
 

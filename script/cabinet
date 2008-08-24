@@ -21,7 +21,7 @@ sub abort(@) {
 }
 
 my $cabinet = Document::Cabinet->new;
-my $root = $cabinet->var_cabinet_dir;
+my $root = $cabinet->run_cabinet_dir;
 
 sub folder_title {
 
@@ -208,6 +208,18 @@ _END_
                 $_->link(@_);
             }
         },
+
+        rescan => sub {
+            my $context = shift;
+            
+            my $dir = $cabinet->run_cabinet_dir;
+            for (grep { -f $_ } $dir->children) {
+                next unless $_->basename =~ m/^.{8}-.{4}-.{4}-.{4}-.{12}$/;
+                $cabinet->parse_file($_);
+            }
+            
+        },
+
         trash => sub {
             my $context = shift;
             local @_ = $context->remaining_arguments;
