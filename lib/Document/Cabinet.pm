@@ -222,7 +222,7 @@ sub new_post {
 
     my $post;
 
-    if ($document->body) {
+    if (1 || $document->body) {
         my ($folder, $title, $uuid, $cdtime) = @{ $document->header }{ qw/folder title uuid cdtime/ };
 
         $post = $self->schema->resultset(qw/Post/)->create({
@@ -239,7 +239,7 @@ sub new_post {
         return;
     }
 
-    return $post;
+    return $self->post($post->uuid);
 }
 
 =head1 AUTHOR
