@@ -18,7 +18,7 @@ our $VERSION = '0.01';
 use Moose;
 use Document::Cabinet::Carp;
 use Document::Cabinet::Types;
-use Framework::Sourmash::Kit name => 'cabinet', dir => <<_END_;
+use Framework::Redmash name => 'cabinet', manifest => <<_END_;
 run
 run/cabinet
 run/cabinet/trash
